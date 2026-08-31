@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 UUID_RE='[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+CN_RE='K[0-9]{10}'
 
 die() { echo "error: $*" >&2; exit 1; }
 
@@ -25,18 +26,35 @@ info() {
   else printf '%s%s%s\n' "$g" "$msg" "$r"; fi
 }
 
+# shellcheck disable=SC2120
 extract_uuids() {
   grep -ohiE "usage\.hetzner\.com/${UUID_RE}" "$@" | sed 's|.*/||'
 }
 
+# shellcheck disable=SC2120
+extract_cn() {
+  local found n
+  found=$(grep -ohE 'K[0-9]+' "$@" | grep -xE "$CN_RE" | sort -u || true)
+  n=$(printf '%s' "$found" | grep -c . || true)
+  case "$n" in
+    1) printf '%s\n' "$found" ;;
+    0) die "no customer number in the invoice page — expected a K followed by digits" ;;
+    *) die "several customer numbers in the input ($(printf '%s' "$found" | tr '\n' ' ')) — audit one account at a time" ;;
+  esac
+}
+
+is_customer_number() { [[ "$1" =~ ^${CN_RE}$ ]]; }
+
 list_invoices() {
-  local uuids
-  uuids=$(extract_uuids "$@" || true)
+  local page cn uuids
+  page=$(cat "$@")
+  cn=$(printf '%s' "$page" | extract_cn) || exit 1
+  uuids=$(printf '%s' "$page" | extract_uuids || true)
   if [[ -z "$uuids" ]]; then
     echo "warning: no UUIDs found — has Hetzner changed the invoice URL?" >&2
     return 1
   fi
-  printf '%s\n' "$uuids"
+  printf '%s\n%s\n' "$cn" "$uuids"
 }
 
 invoice_csv_url() { printf 'https://usage.hetzner.com/%s?csv&cn=%s' "$1" "$2"; }
@@ -83,9 +101,21 @@ fetch_one() {
   return 0
 }
 
-fetch_all() {
-  local cn=$1 data_dir=${2:-data} uuid rc ok=0 skip=0 fail=0
-  mkdir -p "$data_dir"
+customer_number_in_stream() {
+  local line cn=''
+  while read -r line; do
+    is_customer_number "$line" || continue
+    [[ -z "$cn" || "$cn" = "$line" ]] || die "several customer numbers on stdin ($cn and $line) — fetch one account at a time"
+    cn=$line
+  done
+  [[ -n "$cn" ]] || die "no customer number on stdin — pipe the output of 'gelkao list' in"
+  printf '%s\n' "$cn"
+}
+
+uuids_in_stream() { grep -vE "^${CN_RE}$" || true; }
+
+download_each() {
+  local cn=$1 data_dir=$2 uuid rc ok=0 skip=0 fail=0
   while read -r uuid; do
     [[ -n "${uuid:-}" ]] || continue
     rc=0
@@ -97,6 +127,14 @@ fetch_all() {
     esac
   done
   info 2 "Done. downloaded=$ok skipped=$skip failed=$fail"
+}
+
+fetch_all() {
+  local data_dir=${1:-data} stream cn
+  stream=$(cat)
+  cn=$(printf '%s\n' "$stream" | customer_number_in_stream) || exit 1
+  mkdir -p "$data_dir"
+  printf '%s\n' "$stream" | uuids_in_stream | download_each "$cn" "$data_dir"
 }
 
 import_invoices() {
@@ -225,9 +263,11 @@ audit() {
 }
 
 run_pipeline() {
-  local assets=$1 cn=$2 data_dir=${3:-data} db=${4:-} grouping=${5:-} quiet=${6:-0} uuids
-  uuids=$(extract_uuids || true)
+  local assets=$1 data_dir=${2:-data} db=${3:-} grouping=${4:-} quiet=${5:-0} page cn uuids
+  page=$(cat)
+  cn=$(printf '%s' "$page" | extract_cn) || exit 1
+  uuids=$(printf '%s' "$page" | extract_uuids || true)
   [[ -n "$uuids" ]] || die "no invoice UUIDs found on stdin"
-  printf '%s\n' "$uuids" | fetch_all "$cn" "$data_dir" >&2
+  printf '%s\n%s\n' "$cn" "$uuids" | fetch_all "$data_dir" >&2
   audit "$assets" "$data_dir" "$db" "$grouping" "$quiet"
 }
