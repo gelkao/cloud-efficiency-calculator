@@ -18,20 +18,20 @@ Try it first with no account - the repo ships a small synthetic fleet you can au
 ./gelkao -q -d examples audit
 ```
 
-Then run it on your own bill. Replace `K0000000000` with your own Hetzner customer number.
+Then run it on your own bill.
 
 - Go to: https://accounts.hetzner.com/invoice
 - Save the page as HTML into the `data/` directory
 
 <p align="center"><img src="img/hetzner-invoice.en.png" alt="Save page as HTML"></p>
 
-- Run `cat data/*.html | ./gelkao K0000000000`
+- Run `cat data/*.html | ./gelkao`
 
 <p align="center"><img src="img/audit-demo.svg" alt="Cloud Inefficiency Audit sample output"></p>
 
 <p align="center">🟥 ≥ 50% · 🟧 20–49% · 🟩 under 20%</p>
 
-Power users: `cat data/*.html | ./gelkao list | ./gelkao fetch K0000000000 && ./gelkao audit`
+Power users: `cat data/*.html | ./gelkao list | ./gelkao fetch && ./gelkao audit`
 
 ## Real-world example
 
@@ -78,9 +78,10 @@ gelkao — download Hetzner invoices as CSV and audit them
 **SYNOPSIS**
 
 ```
-cat data/*.html | ./gelkao [-g "<project>"] [-d <dir>] [-f <path>] <customer-number>
+cat data/*.html | ./gelkao [-g "<project>"] [-d <dir>] [-f <path>]
 cat data/*.html | ./gelkao list
-echo 00000000-0000-0000-0000-000000000000 | ./gelkao [-d <dir>] fetch <customer-number>
+cat data/*.html | ./gelkao list | ./gelkao [-d <dir>] fetch
+printf 'K0000000000\n00000000-0000-0000-0000-000000000000\n' | ./gelkao [-d <dir>] fetch
 ./gelkao [-g "<project>"] [-d <dir>] [-f <path>] audit
 ```
 
@@ -92,8 +93,9 @@ invoice UUIDs, download each invoice as CSV, then audit them. The individual
 steps are also exposed as subcommands. Download progress goes to stderr; the
 audit to stdout.
 
-The first argument is a subcommand (`list`, `fetch`, `audit`); anything else
-is treated as a customer number and runs the whole flow.
+The first argument is a subcommand (`list`, `fetch`, `audit`); with none, the
+whole flow runs. Your customer number is read out of the invoice page itself, so
+there is nothing to type and nothing to keep in your shell history.
 
 Before auditing, an interactive run offers to refresh the price tables from
 `gelkao.com` (`[Y/n]`); accepting downloads the latest public price/spec CSVs
@@ -115,25 +117,25 @@ tables already on disk.
 
 **ENVIRONMENT**
 
-- `HETZNER_CN` — customer number; fallback for `<customer-number>`.
 - `GELKAO_PRICES_URL` — base URL for the price refresh (default `https://gelkao.com/live`).
 - `LIVE_DIR` — where refreshed price tables are stored (default `live`).
 
 **COMMANDS**
 
-### gelkao &lt;customer-number&gt;
+### gelkao
 
 Runs the whole flow, for when you do not care about the individual steps —
 equivalent to `gelkao list` piped into `gelkao fetch`, followed by
 `gelkao audit`.
 
-`<customer-number>` is required (e.g. `K0000000000`); it may instead be supplied
-via `HETZNER_CN`. Exit status: `0` completed · `1` no customer number, or no
-UUIDs found on stdin.
+Takes no arguments: the customer number is read from the invoice page on stdin.
+Exit status: `0` completed · `1` the page held no customer number, or it held two
+different ones (pages from two accounts piped in together), or no UUIDs were
+found on stdin.
 
 ```
-cat data/*.html | ./gelkao K0000000000
-cat data/invoice.html | HETZNER_CN=K0000000000 ./gelkao
+cat data/*.html | ./gelkao
+cat data/invoice.html | ./gelkao -d /tmp/audit
 ```
 
 ### gelkao list
@@ -160,9 +162,10 @@ cat data/invoice-list.html | ./gelkao list
 cat data/*.html | ./gelkao list | sort -u
 ```
 
-### gelkao fetch &lt;customer-number&gt;
+### gelkao fetch
 
-Reads invoice UUIDs on stdin (one per line) and downloads each itemized invoice
+Reads the output of `gelkao list` on stdin — one customer number line (`K…`) and
+one invoice UUID per line, in any order — and downloads each itemized invoice
 as CSV from `https://usage.hetzner.com/<uuid>?csv&cn=<customer-number>`. Files
 are written to the data directory as `<customer-number>-<YYYY-MM>-<uuid>.csv`, where the
 year-month comes from the first ISO date in the CSV. Because the UUID is part of
@@ -170,15 +173,17 @@ the filename, an invoice that is already present is detected and skipped
 **before** downloading (the month is wildcarded in the lookup) — so re-runs and
 retries cost no network request for work already done.
 
-`<customer-number>` is required (e.g. `K0000000000`); it may instead be supplied
-via `HETZNER_CN`. `-d <dir>` sets the output directory (default `data`).
+The customer number comes from the stream, not from an argument. `-d <dir>` sets
+the output directory (default `data`).
 
 **OUTPUT** — `ok` / `skip` progress lines on stdout, `fail` lines on stderr, and
 a final `Done. downloaded=N skipped=N failed=N` summary on stderr. CSV files
 land in the data directory.
 
 **EXIT STATUS** — `0` completed (individual download failures are reported but do
-not abort the run) · `1` no customer number supplied.
+not abort the run) · `1` no `K…` line on stdin, or two different ones (output of
+two `list` runs for different accounts concatenated). Repeats of the same number
+are fine.
 
 **NOTES** — the tool downloads sequentially with no artificial delay, and that is
 intentional. Probing the endpoint shows it exposes no client-visible rate-limit
@@ -191,21 +196,22 @@ re-run skips already-downloaded invoices without re-fetching them, so an
 interrupted or rate-limited run is cheap to repeat.
 
 **SECURITY** — downloading an invoice needs two independent secrets — the
-per-invoice UUID and your account's customer number (the `K…` value passed as
+per-invoice UUID and your account's customer number (the `K…` value sent as
 `cn`). No browser login or session cookie is involved; the two values together
 are the credential, much like a second factor. Notes:
 
 - A UUID on its own will not download anything — the matching customer number
   must also be supplied. But that number is the same for every invoice on the
   account and is low-entropy, so once it is known the UUID is effectively the
-  only per-invoice secret.
+  only per-invoice secret. Both values live in the invoice page you saved, which
+  is why that file is the thing to protect.
 - Treat both the UUID list and the customer number as sensitive, and the
   downloaded CSVs as billing data. `data/` is gitignored by default — keep it
   out of version control, logs, tickets, and shared locations.
 
 ```
-echo 00000000-0000-0000-0000-000000000000 | ./gelkao fetch K0000000000
-echo 00000000-0000-0000-0000-000000000000 | HETZNER_CN=K0000000000 ./gelkao fetch
+printf 'K0000000000\n00000000-0000-0000-0000-000000000000\n' | ./gelkao fetch
+cat data/*.html | ./gelkao list | ./gelkao fetch
 ```
 
 ### gelkao audit
@@ -239,7 +245,7 @@ number and a saved invoice page, secrets that must never reach a public CI runne
 so it runs only on your machine:
 
 ```
-HETZNER_CN=K... INVOICE_HTML=data/your-invoices.html bats tests/*.bats
+INVOICE_HTML=data/your-invoices.html bats tests/*.bats
 ```
 
 - `gelkao` shares its logic with `lib.sh`.
@@ -255,7 +261,7 @@ and publishes the pass-count to a gist that backs the README's integration badge
 so the badge reflects a real run against real invoices, not CI:
 
 ```
-HETZNER_CN=K... INVOICE_HTML=data/your-invoices.html ./badge.sh
+INVOICE_HTML=data/your-invoices.html ./badge.sh
 ```
 
 ## References

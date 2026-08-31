@@ -44,6 +44,6 @@ Deliberately minimal: `bash`, `curl`, and `sqlite3`, plus standard text utilitie
 
 ## A note on the customer number
 
-Fetching an invoice requires **two** secrets together: the per-invoice capability URL (`usage.hetzner.com/<uuid>`, supplied on stdin) and your account customer number (`K…`). Either one alone is insufficient.
+Fetching an invoice requires **two** secrets together: the per-invoice capability URL (`usage.hetzner.com/<uuid>`) and your account customer number (`K…`). Either one alone is insufficient.
 
-When you pass the customer number as a command-line argument (`./gelkao K…`), it can appear in your shell history and in `ps` output. The customer number alone is not a complete credential (it still needs the per-invoice UUID, which is never placed on the command line), but to keep it out of your interactive history you can supply it through the `HETZNER_CN` environment variable set in your shell environment — for example from your secrets manager — rather than typing it inline.
+Neither is ever typed. `gelkao` reads both out of the invoice page you saved, so the customer number never reaches your shell history or `ps` output, and there is no environment variable to set. Both values live in that one saved HTML file — which makes the file itself the thing to keep out of version control, tickets and shared locations.
