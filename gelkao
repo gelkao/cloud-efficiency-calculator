@@ -8,13 +8,16 @@ source "$here/lib.sh"
 usage() {
   cat <<'EOF'
 Usage:
-  cat data/*.html | gelkao [-g "<project>"] [-d <dir>] [-f <path>]   fetch invoices and audit
-  cat data/*.html | gelkao list                                     list the customer number and invoice UUIDs
-  gelkao [-d <dir>] fetch                                           download invoice CSVs (output of list on stdin)
-  gelkao [-g "<project>"] [-d <dir>] [-f <path>] audit              build the DB from CSVs and audit
+  cat data/*.html | gelkao invoice audit - [-g "<project>"] [-d <dir>] [-f <path>]
+                                     download the invoices on stdin, then audit them
+  cat data/*.html | gelkao invoice list
+                                     list the customer number and invoice UUIDs
+  gelkao invoice fetch [-d <dir>]    download invoice CSVs (output of list on stdin)
+  gelkao invoice audit [-g "<project>"] [-d <dir>] [-f <path>]
+                                     audit the CSVs already in <dir>; stdin is never read
 
   -g "<project>"   audit only one Hetzner project (the invoice "grouping" column);
-                   valid for the full run and audit only
+                   valid for audit only
   -d <dir>         CSV directory (default: data)
   -f <path>        database file (default: <dir>/gelkao.db)
   -q               skip the price-refresh prompt (non-interactive)
@@ -34,19 +37,26 @@ cmd_list() { list_invoices "$@"; }
 cmd_fetch() { fetch_all "$1"; }
 
 cmd_audit() {
-  local grouping=$1 quiet=$2 data_dir=$3 db=$4
-  audit "$here" "$data_dir" "$db" "$grouping" "$quiet"
-}
-
-cmd_run() {
-  local grouping=$1 quiet=$2 data_dir=$3 db=$4
+  local grouping=$1 quiet=$2 data_dir=$3 db=$4 from_stdin=${5:-}
+  if [[ "$from_stdin" != "-" ]]; then
+    audit "$here" "$data_dir" "$db" "$grouping" "$quiet"
+    return
+  fi
   banner
   run_pipeline "$here" "$data_dir" "$db" "$grouping" "$quiet"
 }
 
-main() {
+invoice_cmd() {
+  local verb=${1-}
+  [[ -n "$verb" ]] || die "invoice needs a subcommand: list, fetch or audit"
+  shift
+  local from_stdin='' arg
+  local -a args=()
+  for arg in "$@"; do
+    if [[ "$arg" = "-" ]]; then from_stdin='-'; else args+=("$arg"); fi
+  done
+  set -- ${args[@]+"${args[@]}"}
   local OPTIND grouping="" quiet=0 data_dir=data data_dir_set=0 db=""
-  [[ "${1-}" = "--help" ]] && { usage; exit 0; }
   while getopts ":g:d:f:hq" opt; do
     case "$opt" in
       g) grouping=$OPTARG ;;
@@ -59,13 +69,23 @@ main() {
     esac
   done
   shift $((OPTIND - 1))
+  case "$verb" in
+    list)  [[ -z "$from_stdin" ]] || die "- is not valid for list; it always reads stdin";
+           [[ -z "$grouping" ]] || die "-g is not valid for list"; [[ "$data_dir_set" = 0 ]] || die "-d is not valid for list"; [[ -z "$db" ]] || die "-f is not valid for list"; cmd_list "$@" ;;
+    fetch) [[ -z "$from_stdin" ]] || die "- is not valid for fetch; it always reads stdin";
+           [[ -z "$grouping" ]] || die "-g is not valid for fetch"; [[ -z "$db" ]] || die "-f is not valid for fetch"; cmd_fetch "$data_dir" ;;
+    audit) [[ $# -eq 0 ]] || die "unexpected argument: $1 — use - to read the invoice page from stdin"
+           cmd_audit "$grouping" "$quiet" "$data_dir" "$db" "$from_stdin" ;;
+    *)     die "unknown invoice subcommand: $verb — try list, fetch or audit" ;;
+  esac
+}
+
+main() {
   case "${1-}" in
-    '')    if [ -t 0 ]; then usage; exit 2; fi
-           cmd_run "$grouping" "$quiet" "$data_dir" "$db" ;;
-    list)  shift; [[ -z "$grouping" ]] || die "-g is not valid for list"; [[ "$data_dir_set" = 0 ]] || die "-d is not valid for list"; [[ -z "$db" ]] || die "-f is not valid for list"; cmd_list "$@" ;;
-    fetch) shift; [[ -z "$grouping" ]] || die "-g is not valid for fetch"; [[ -z "$db" ]] || die "-f is not valid for fetch"; cmd_fetch "$data_dir" ;;
-    audit) shift; cmd_audit "$grouping" "$quiet" "$data_dir" "$db" ;;
-    *)     die "unknown command: $1 — try list, fetch, audit, or --help" ;;
+    '')           usage; exit 2 ;;
+    --help|-h)    usage; exit 0 ;;
+    invoice)      shift; invoice_cmd "$@" ;;
+    *)            die "unknown command: $1 — try 'invoice', or --help" ;;
   esac
 }
 

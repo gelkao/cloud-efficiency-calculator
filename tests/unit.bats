@@ -90,7 +90,7 @@ HTML
 }
 
 @test "fetch_all errors when no customer number reaches it" {
-  run bash -c "echo 11111111-2222-3333-4444-555555555555 | '$ROOT/gelkao' -d '$BATS_TEST_TMPDIR/nf' fetch"
+  run bash -c "echo 11111111-2222-3333-4444-555555555555 | '$ROOT/gelkao' invoice fetch -d '$BATS_TEST_TMPDIR/nf'"
   [ "$status" -ne 0 ]
   [[ "$output" == *"no customer number on stdin"* ]]
 }
@@ -129,37 +129,37 @@ HTML
   [ -f "$out/K0000000000-2024-12-$uuid.csv" ]
 }
 
-@test "gelkao -g is rejected for list and fetch" {
-  run "$ROOT/gelkao" -g "Project prod" list
+@test "gelkao invoice -g is rejected for list and fetch" {
+  run "$ROOT/gelkao" invoice list -g "Project prod"
   [ "$status" -ne 0 ]
   [[ "$output" == *"not valid for list"* ]]
 
-  run "$ROOT/gelkao" -g "Project prod" fetch
+  run "$ROOT/gelkao" invoice fetch -g "Project prod"
   [ "$status" -ne 0 ]
   [[ "$output" == *"not valid for fetch"* ]]
 }
 
-@test "gelkao -d <dir> fetch looks in <dir> (skips a pre-seeded invoice, no network)" {
+@test "gelkao invoice fetch -d <dir> looks in <dir> (skips a pre-seeded invoice, no network)" {
   d="$BATS_TEST_TMPDIR/f"; mkdir -p "$d"
   uuid=11111111-2222-3333-4444-555555555555
   invoice_csv "$d/K0000000000-2025-11-$uuid.csv"
-  run bash -c "printf 'K0000000000\n%s\n' '$uuid' | '$ROOT/gelkao' -d '$d' fetch"
+  run bash -c "printf 'K0000000000\n%s\n' '$uuid' | '$ROOT/gelkao' invoice fetch -d '$d'"
   [ "$status" -eq 0 ]
   [[ "$output" == *"skip"* ]]
 }
 
-@test "gelkao -d is rejected for list" {
-  run "$ROOT/gelkao" -d /tmp list
+@test "gelkao invoice -d is rejected for list" {
+  run "$ROOT/gelkao" invoice list -d /tmp
   [ "$status" -ne 0 ]
   [[ "$output" == *"not valid for list"* ]]
 }
 
-@test "gelkao -f is rejected for list and fetch" {
-  run "$ROOT/gelkao" -f /tmp/x.db list
+@test "gelkao invoice -f is rejected for list and fetch" {
+  run "$ROOT/gelkao" invoice list -f /tmp/x.db
   [ "$status" -ne 0 ]
   [[ "$output" == *"not valid for list"* ]]
 
-  run "$ROOT/gelkao" -f /tmp/x.db fetch
+  run "$ROOT/gelkao" invoice fetch -f /tmp/x.db
   [ "$status" -ne 0 ]
   [[ "$output" == *"not valid for fetch"* ]]
 }
@@ -408,24 +408,32 @@ CSV
   [ "$(sqlite3 "$db" "SELECT printf('%.2f', optimal) FROM priced;")" = "4.57" ]
 }
 
-@test "gelkao -d <dir> runs the whole pipeline into <dir>: extract, fetch (skip), audit" {
+@test "gelkao invoice audit -d <dir> runs the whole pipeline: extract, fetch (skip), audit" {
   d="$BATS_TEST_TMPDIR/g"; mkdir -p "$d"
   uuid=11111111-2222-3333-4444-555555555555
   invoice_csv "$d/K0000000000-2025-11-$uuid.csv"   # pre-seeded -> fetch skips, no network
   html="$BATS_TEST_TMPDIR/page.html"
   printf '<td>K0000000000</td><a href="https://usage.hetzner.com/%s">x</a>\n' "$uuid" > "$html"
 
-  run bash -c "cat '$html' | '$ROOT/gelkao' -d '$d'"
+  run bash -c "cat '$html' | '$ROOT/gelkao' invoice audit -d '$d' -"
   [ "$status" -eq 0 ]
   [[ "$output" == *"skip"* ]]                     # fetch skipped the pre-seeded invoice in <dir> (no curl)
   [[ "$output" == *"would save"* ]]               # audit ran end-to-end
   [ -f "$d/gelkao.db" ]
 }
 
-@test "gelkao -q audit is accepted and produces an audit" {
+@test "gelkao invoice audit ignores stdin unless given -" {
+  d="$BATS_TEST_TMPDIR/ig"; mkdir -p "$d"
+  invoice_csv "$d/K0000000000-2025-11-x.csv"
+  run bash -c "echo 'not an invoice page' | '$ROOT/gelkao' invoice audit -q -d '$d'"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"would save"* ]]
+}
+
+@test "gelkao invoice audit -q is accepted and produces an audit" {
   d="$BATS_TEST_TMPDIR/q"; mkdir -p "$d"
   invoice_csv "$d/K0000000000-2025-11-x.csv"
-  run bash -c "'$ROOT/gelkao' -q -d '$d' audit"
+  run bash -c "'$ROOT/gelkao' invoice audit -q -d '$d'"
   [ "$status" -eq 0 ]
   [[ "$output" == *"would save"* ]]
 }
