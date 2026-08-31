@@ -17,7 +17,7 @@ Probier es erst ohne Account aus – das Repo bringt eine kleine synthetische
 Server-Flotte mit, die du direkt nach dem Klonen auditieren kannst:
 
 ```
-./gelkao -q -d examples audit
+./gelkao invoice audit -q -d examples
 ```
 
 Dann lass es auf deine eigene Rechnung los.
@@ -27,13 +27,13 @@ Dann lass es auf deine eigene Rechnung los.
 
 <p align="center"><img src="img/hetzner-invoice.de.png" alt="Seite als HTML speichern"></p>
 
-- Führe `cat data/*.html | ./gelkao` aus
+- Führe `cat data/*.html | ./gelkao invoice audit -` aus
 
 <p align="center"><img src="img/audit-demo.svg" alt="Beispielausgabe der Cloud Inefficiency Audit"></p>
 
 <p align="center">🟥 ≥ 50 % · 🟧 20–49 % · 🟩 unter 20 %</p>
 
-Für Power-User: `cat data/*.html | ./gelkao list | ./gelkao fetch && ./gelkao audit`
+Für Power-User: `cat data/*.html | ./gelkao invoice list | ./gelkao invoice fetch && ./gelkao invoice audit`
 
 ## Beispiel aus der Praxis
 
@@ -80,11 +80,11 @@ gelkao – Hetzner-Rechnungen als CSV herunterladen und auditieren
 **ÜBERSICHT**
 
 ```
-cat data/*.html | ./gelkao [-g "<projekt>"] [-d <verzeichnis>] [-f <pfad>]
-cat data/*.html | ./gelkao list
-cat data/*.html | ./gelkao list | ./gelkao [-d <verzeichnis>] fetch
-printf 'K0000000000\n00000000-0000-0000-0000-000000000000\n' | ./gelkao [-d <verzeichnis>] fetch
-./gelkao [-g "<projekt>"] [-d <verzeichnis>] [-f <pfad>] audit
+cat data/*.html | ./gelkao invoice audit - [-g "<projekt>"] [-d <verzeichnis>] [-f <pfad>]
+cat data/*.html | ./gelkao invoice list
+cat data/*.html | ./gelkao invoice list | ./gelkao invoice fetch [-d <verzeichnis>]
+printf 'K0000000000\n00000000-0000-0000-0000-000000000000\n' | ./gelkao invoice fetch [-d <verzeichnis>]
+./gelkao invoice audit [-g "<projekt>"] [-d <verzeichnis>] [-f <pfad>]
 ```
 
 **BESCHREIBUNG**
@@ -128,23 +128,7 @@ vorhandenen Tabellen gerechnet.
 
 **BEFEHLE**
 
-### gelkao
-
-Führt den gesamten Ablauf aus – für den Fall, dass die einzelnen Schritte nicht
-von Belang sind; entspricht `gelkao list`, per Pipe an `gelkao fetch`
-weitergegeben, gefolgt von `gelkao audit`.
-
-Erwartet keine Argumente: die Kundennummer wird aus der Rechnungsseite auf der
-Standardeingabe gelesen. Exit-Status: `0` abgeschlossen · `1` die Seite enthielt
-keine Kundennummer, oder sie enthielt zwei verschiedene (Seiten aus zwei Accounts
-zusammen eingegeben), oder es wurden keine UUIDs auf der Standardeingabe gefunden.
-
-```
-cat data/*.html | ./gelkao
-cat data/invoice.html | ./gelkao -d /tmp/audit
-```
-
-### gelkao list
+### gelkao invoice list
 
 Liest das HTML der Hetzner-Seite „Rechnungen verwalten“ von der Standardeingabe
 und gibt die UUID jeder Rechnung aus, eine pro Zeile. Die UUIDs werden aus den
@@ -169,12 +153,12 @@ Gesamtzahl der Zeilen auf der Seite zu rechnen.
 
 ```
 cat data/invoice-list.html | ./gelkao list
-cat data/*.html | ./gelkao list | sort -u
+cat data/*.html | ./gelkao invoice list | sort -u
 ```
 
-### gelkao fetch
+### gelkao invoice fetch
 
-Liest die Ausgabe von `gelkao list` von der Standardeingabe – eine Zeile mit der
+Liest die Ausgabe von `gelkao invoice list` von der Standardeingabe – eine Zeile mit der
 Kundennummer (`K…`) und eine Rechnungs-UUID pro Zeile, in beliebiger Reihenfolge –
 und lädt jede detaillierte Rechnung als CSV von
 `https://usage.hetzner.com/<uuid>?csv&cn=<kundennummer>`
@@ -228,11 +212,20 @@ Session-Cookie ist beteiligt; die beiden Werte zusammen bilden die Zugangsdaten,
   (Logs), Tickets und geteilten Ablagen heraushalten.
 
 ```
-printf 'K0000000000\n00000000-0000-0000-0000-000000000000\n' | ./gelkao fetch
-cat data/*.html | ./gelkao list | ./gelkao fetch
+printf 'K0000000000\n00000000-0000-0000-0000-000000000000\n' | ./gelkao invoice fetch
+cat data/*.html | ./gelkao invoice list | ./gelkao invoice fetch
 ```
 
-### gelkao audit
+### gelkao invoice audit
+
+Mit `-` wird die Rechnungsseite von der Standardeingabe gelesen und der gesamte
+Ablauf ausgeführt – das entspricht `gelkao invoice list`, per Pipe an
+`gelkao invoice fetch` weitergegeben, gefolgt vom unten beschriebenen Audit. Die
+Kundennummer stammt aus der Seite, es ist also nichts zu übergeben. Das `-` darf
+vor oder nach den Optionen stehen.
+
+Ohne `-` wird die Standardeingabe nie gelesen; es läuft direkt das Audit der
+bereits im Datenverzeichnis liegenden CSVs.
 
 Baut eine wegwerfbare SQLite-Datenbank aus den Rechnungs-CSVs auf und gibt den
 Audit-Report aus. Die Tabellen werden aus `schema.sql` erstellt, jede `*.csv` im
@@ -250,12 +243,14 @@ und ist ein wegwerfbarer Cache, der bei jedem Lauf aus den CSVs neu aufgebaut wi
 `-d <verzeichnis>` legt den Ordner mit den Rechnungs-CSVs fest (Vorgabe
 `data`); `-f <pfad>` legt den Datenbankpfad fest (Vorgabe `<verzeichnis>/gelkao.db`).
 Exit-Status: `0` abgeschlossen · `1` keine Rechnungs-CSVs im Datenverzeichnis
-gefunden.
+gefunden, oder – wenn eine Seite hineingegeben wurde – keine Kundennummer darin,
+zwei verschiedene, oder keine UUIDs.
 
 ```
-./gelkao audit
-./gelkao -g "Project prod" audit
-./gelkao -d pages -f /tmp/x.db audit
+cat data/*.html | ./gelkao invoice audit -
+./gelkao invoice audit
+./gelkao invoice audit -g "Project prod"
+./gelkao invoice audit -d pages -f /tmp/x.db
 ```
 
 ## Tests
