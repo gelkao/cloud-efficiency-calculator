@@ -15,7 +15,7 @@ already have, prints what you overpaid, and exits. Grep the source to prove it.
 Try it first with no account - the repo ships a small synthetic fleet you can audit on a fresh clone:
 
 ```
-./gelkao -q -d examples audit
+./gelkao invoice audit -q -d examples
 ```
 
 Then run it on your own bill.
@@ -25,13 +25,13 @@ Then run it on your own bill.
 
 <p align="center"><img src="img/hetzner-invoice.en.png" alt="Save page as HTML"></p>
 
-- Run `cat data/*.html | ./gelkao`
+- Run `cat data/*.html | ./gelkao invoice audit -`
 
 <p align="center"><img src="img/audit-demo.svg" alt="Cloud Inefficiency Audit sample output"></p>
 
 <p align="center">🟥 ≥ 50% · 🟧 20–49% · 🟩 under 20%</p>
 
-Power users: `cat data/*.html | ./gelkao list | ./gelkao fetch && ./gelkao audit`
+Power users: `cat data/*.html | ./gelkao invoice list | ./gelkao invoice fetch && ./gelkao invoice audit`
 
 ## Real-world example
 
@@ -78,11 +78,11 @@ gelkao — download Hetzner invoices as CSV and audit them
 **SYNOPSIS**
 
 ```
-cat data/*.html | ./gelkao [-g "<project>"] [-d <dir>] [-f <path>]
-cat data/*.html | ./gelkao list
-cat data/*.html | ./gelkao list | ./gelkao [-d <dir>] fetch
-printf 'K0000000000\n00000000-0000-0000-0000-000000000000\n' | ./gelkao [-d <dir>] fetch
-./gelkao [-g "<project>"] [-d <dir>] [-f <path>] audit
+cat data/*.html | ./gelkao invoice audit - [-g "<project>"] [-d <dir>] [-f <path>]
+cat data/*.html | ./gelkao invoice list
+cat data/*.html | ./gelkao invoice list | ./gelkao invoice fetch [-d <dir>]
+printf 'K0000000000\n00000000-0000-0000-0000-000000000000\n' | ./gelkao invoice fetch [-d <dir>]
+./gelkao invoice audit [-g "<project>"] [-d <dir>] [-f <path>]
 ```
 
 **DESCRIPTION**
@@ -122,23 +122,7 @@ tables already on disk.
 
 **COMMANDS**
 
-### gelkao
-
-Runs the whole flow, for when you do not care about the individual steps —
-equivalent to `gelkao list` piped into `gelkao fetch`, followed by
-`gelkao audit`.
-
-Takes no arguments: the customer number is read from the invoice page on stdin.
-Exit status: `0` completed · `1` the page held no customer number, or it held two
-different ones (pages from two accounts piped in together), or no UUIDs were
-found on stdin.
-
-```
-cat data/*.html | ./gelkao
-cat data/invoice.html | ./gelkao -d /tmp/audit
-```
-
-### gelkao list
+### gelkao invoice list
 
 Reads Hetzner "Administer invoices" HTML on stdin and prints the UUID of each
 invoice, one per line. UUIDs are scraped from the per-invoice detail links of
@@ -158,13 +142,13 @@ Hetzner rolled out on 1 Oct 2024; older invoices use numeric IDs
 UUIDs than the page's total row count when old invoices are present.
 
 ```
-cat data/invoice-list.html | ./gelkao list
-cat data/*.html | ./gelkao list | sort -u
+cat data/invoice-list.html | ./gelkao invoice list
+cat data/*.html | ./gelkao invoice list | sort -u
 ```
 
-### gelkao fetch
+### gelkao invoice fetch
 
-Reads the output of `gelkao list` on stdin — one customer number line (`K…`) and
+Reads the output of `gelkao invoice list` on stdin — one customer number line (`K…`) and
 one invoice UUID per line, in any order — and downloads each itemized invoice
 as CSV from `https://usage.hetzner.com/<uuid>?csv&cn=<customer-number>`. Files
 are written to the data directory as `<customer-number>-<YYYY-MM>-<uuid>.csv`, where the
@@ -210,11 +194,19 @@ are the credential, much like a second factor. Notes:
   out of version control, logs, tickets, and shared locations.
 
 ```
-printf 'K0000000000\n00000000-0000-0000-0000-000000000000\n' | ./gelkao fetch
-cat data/*.html | ./gelkao list | ./gelkao fetch
+printf 'K0000000000\n00000000-0000-0000-0000-000000000000\n' | ./gelkao invoice fetch
+cat data/*.html | ./gelkao invoice list | ./gelkao invoice fetch
 ```
 
-### gelkao audit
+### gelkao invoice audit
+
+Given `-`, it reads the invoice page from stdin and runs the whole flow —
+equivalent to `gelkao invoice list` piped into `gelkao invoice fetch`, followed by
+the audit below. The customer number comes from the page, so there is nothing to
+pass. The `-` may appear before or after the flags.
+
+Without `-` it never reads stdin and goes straight to auditing the CSVs already
+in the data directory.
 
 Builds a throwaway SQLite database from the invoice CSVs and prints the audit
 report. It creates the tables from `schema.sql`, imports every `*.csv` in the
@@ -229,12 +221,14 @@ safe to delete.
 
 `-d <dir>` sets the invoice CSV folder (default `data`); `-f <path>` sets the
 database path (default `<dir>/gelkao.db`). Exit status: `0` completed · `1` no
-invoice CSVs found in the data directory.
+invoice CSVs found in the data directory, or — when a page was piped in — no
+customer number in it, two different ones, or no UUIDs.
 
 ```
-./gelkao audit
-./gelkao -g "Project prod" audit
-./gelkao -d pages -f /tmp/x.db audit
+cat data/*.html | ./gelkao invoice audit -
+./gelkao invoice audit
+./gelkao invoice audit -g "Project prod"
+./gelkao invoice audit -d pages -f /tmp/x.db
 ```
 
 ## Tests

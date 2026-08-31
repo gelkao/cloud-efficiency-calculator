@@ -5,7 +5,7 @@ fleet (made-up servers, made-up amounts) so you can run the audit without a
 Hetzner account:
 
 ```
-./gelkao -q audit examples
+./gelkao invoice audit -q -d examples
 ```
 
 The numbers here are invented to demonstrate the tool and are unrelated to any
