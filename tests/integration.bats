@@ -44,9 +44,9 @@ need_data() {  # audit needs only local CSVs — no network, no credentials
   head -1 "$live/hetzner/server_types.csv" | grep -q '^type,vcpu,ram_gb'
 }
 
-@test "gelkao list yields the customer number then well-formed UUIDs" {
+@test "gelkao invoice list yields the customer number then well-formed UUIDs" {
   need_creds
-  run bash -c "cat '$INVOICE_HTML' | '$ROOT/gelkao' list"
+  run bash -c "cat '$INVOICE_HTML' | '$ROOT/gelkao' invoice list"
   [ "$status" -eq 0 ]
   [ "${#lines[@]}" -ge 2 ]
   [[ "${lines[0]}" =~ ^K[0-9]+$ ]]
@@ -57,7 +57,7 @@ need_data() {  # audit needs only local CSVs — no network, no credentials
 
 @test "pipeline downloads CSVs named <CN>-YYYY-MM-<uuid>.csv and prints a summary" {
   need_creds
-  run bash -c "cat '$INVOICE_HTML' | '$ROOT/gelkao' list | '$ROOT/gelkao' -d '$DATA_DIR' fetch"
+  run bash -c "cat '$INVOICE_HTML' | '$ROOT/gelkao' invoice list | '$ROOT/gelkao' invoice fetch -d '$DATA_DIR'"
   [ "$status" -eq 0 ]
   [[ "$output" =~ Done\.\ downloaded=[0-9]+\ skipped=[0-9]+\ failed=[0-9]+ ]]
   shopt -s nullglob
@@ -68,22 +68,22 @@ need_data() {  # audit needs only local CSVs — no network, no credentials
 
 @test "re-running the pipeline skips already-downloaded invoices" {
   need_creds
-  bash -c "cat '$INVOICE_HTML' | '$ROOT/gelkao' list | '$ROOT/gelkao' -d '$DATA_DIR' fetch"
-  run bash -c "cat '$INVOICE_HTML' | '$ROOT/gelkao' list | '$ROOT/gelkao' -d '$DATA_DIR' fetch"
+  bash -c "cat '$INVOICE_HTML' | '$ROOT/gelkao' invoice list | '$ROOT/gelkao' invoice fetch -d '$DATA_DIR'"
+  run bash -c "cat '$INVOICE_HTML' | '$ROOT/gelkao' invoice list | '$ROOT/gelkao' invoice fetch -d '$DATA_DIR'"
   [ "$status" -eq 0 ]
   [[ "$output" =~ downloaded=0 ]]
 }
 
 @test "audit loads the real invoice CSVs in data/ and reports a savings figure" {
   need_data
-  run "$ROOT/gelkao" -d "$ROOT/data" -f "$BATS_TEST_TMPDIR/audit.db" audit
+  run "$ROOT/gelkao" invoice audit -d "$ROOT/data" -f "$BATS_TEST_TMPDIR/audit.db"
   [ "$status" -eq 0 ]
   [[ "$output" =~ price\ group\ +:\ [a-z]+ ]]
   [[ "$output" =~ would\ save\ :\ [0-9]+\.[0-9]+% ]]
 }
 
 @test "audit runs the committed synthetic examples with no credentials or network" {
-  run "$ROOT/gelkao" -q -d "$ROOT/examples" -f "$BATS_TEST_TMPDIR/example.db" audit
+  run "$ROOT/gelkao" invoice audit -q -d "$ROOT/examples" -f "$BATS_TEST_TMPDIR/example.db"
   [ "$status" -eq 0 ]
   [[ "$output" =~ price\ group\ +:\ eu ]]
   [[ "$output" =~ would\ save\ :\ [23][0-9]\.[0-9]+% ]]
@@ -91,9 +91,9 @@ need_data() {  # audit needs only local CSVs — no network, no credentials
   [ ! -f "$ROOT/examples/gelkao.db" ]
 }
 
-@test "gelkao end-to-end downloads then reports a positive line count" {
+@test "gelkao invoice audit end-to-end downloads then reports a positive line count" {
   need_creds
-  run bash -c "cat '$INVOICE_HTML' | '$ROOT/gelkao' -d '$DATA_DIR'"
+  run bash -c "cat '$INVOICE_HTML' | '$ROOT/gelkao' invoice audit -d '$DATA_DIR' -"
   [ "$status" -eq 0 ]
   [[ "$output" =~ Done\.\ downloaded=[0-9]+ ]]           # fetch stage ran
   [[ "$output" =~ would\ save\ :\ [0-9]+\.[0-9]+% ]]        # audit stage ran
