@@ -20,20 +20,20 @@ Server-Flotte mit, die du direkt nach dem Klonen auditieren kannst:
 ./gelkao -q -d examples audit
 ```
 
-Dann lass es auf deine eigene Rechnung los. Ersetze `K0000000000` durch deine eigene Hetzner-Kundennummer.
+Dann lass es auf deine eigene Rechnung los.
 
 - Öffne: https://accounts.hetzner.com/invoice
 - Speichere die Seite als HTML im Verzeichnis `data/`
 
 <p align="center"><img src="img/hetzner-invoice.de.png" alt="Seite als HTML speichern"></p>
 
-- Führe `cat data/*.html | ./gelkao K0000000000` aus
+- Führe `cat data/*.html | ./gelkao` aus
 
 <p align="center"><img src="img/audit-demo.svg" alt="Beispielausgabe der Cloud Inefficiency Audit"></p>
 
 <p align="center">🟥 ≥ 50 % · 🟧 20–49 % · 🟩 unter 20 %</p>
 
-Für Power-User: `cat data/*.html | ./gelkao list | ./gelkao fetch K0000000000 && ./gelkao audit`
+Für Power-User: `cat data/*.html | ./gelkao list | ./gelkao fetch && ./gelkao audit`
 
 ## Beispiel aus der Praxis
 
@@ -80,9 +80,10 @@ gelkao – Hetzner-Rechnungen als CSV herunterladen und auditieren
 **ÜBERSICHT**
 
 ```
-cat data/*.html | ./gelkao [-g "<projekt>"] [-d <verzeichnis>] [-f <pfad>] <kundennummer>
+cat data/*.html | ./gelkao [-g "<projekt>"] [-d <verzeichnis>] [-f <pfad>]
 cat data/*.html | ./gelkao list
-echo 00000000-0000-0000-0000-000000000000 | ./gelkao [-d <verzeichnis>] fetch <kundennummer>
+cat data/*.html | ./gelkao list | ./gelkao [-d <verzeichnis>] fetch
+printf 'K0000000000\n00000000-0000-0000-0000-000000000000\n' | ./gelkao [-d <verzeichnis>] fetch
 ./gelkao [-g "<projekt>"] [-d <verzeichnis>] [-f <pfad>] audit
 ```
 
@@ -96,8 +97,9 @@ als Subkommandos zur Verfügung. Der Download-Fortschritt wird auf die
 Standardfehlerausgabe (stderr) geschrieben, das Audit auf die Standardausgabe
 (stdout).
 
-Das erste Argument ist ein Subkommando (`list`, `fetch`, `audit`); alles andere
-wird als Kundennummer interpretiert und löst den gesamten Ablauf aus.
+Das erste Argument ist ein Subkommando (`list`, `fetch`, `audit`); ohne Angabe
+läuft der gesamte Ablauf. Die Kundennummer wird aus der Rechnungsseite selbst
+gelesen – es ist also nichts einzutippen und nichts landet in der Shell-History.
 
 Vor dem Audit bietet ein interaktiver Lauf an, die Preistabellen von `gelkao.com`
 zu aktualisieren (`[Y/n]`); bei Zustimmung werden die neuesten öffentlichen
@@ -121,25 +123,25 @@ vorhandenen Tabellen gerechnet.
 
 **UMGEBUNGSVARIABLEN**
 
-- `HETZNER_CN` – Kundennummer; Ausweichwert für `<kundennummer>`.
 - `GELKAO_PRICES_URL` – Basis-URL für die Preisaktualisierung (Vorgabe `https://gelkao.com/live`).
 - `LIVE_DIR` – Speicherort der aktualisierten Preistabellen (Vorgabe `live`).
 
 **BEFEHLE**
 
-### gelkao &lt;kundennummer&gt;
+### gelkao
 
 Führt den gesamten Ablauf aus – für den Fall, dass die einzelnen Schritte nicht
 von Belang sind; entspricht `gelkao list`, per Pipe an `gelkao fetch`
 weitergegeben, gefolgt von `gelkao audit`.
 
-`<kundennummer>` ist erforderlich (z. B. `K0000000000`) und kann alternativ über
-`HETZNER_CN` bereitgestellt werden. Exit-Status: `0` abgeschlossen · `1` keine
-Kundennummer oder keine UUIDs auf der Standardeingabe gefunden.
+Erwartet keine Argumente: die Kundennummer wird aus der Rechnungsseite auf der
+Standardeingabe gelesen. Exit-Status: `0` abgeschlossen · `1` die Seite enthielt
+keine Kundennummer, oder sie enthielt zwei verschiedene (Seiten aus zwei Accounts
+zusammen eingegeben), oder es wurden keine UUIDs auf der Standardeingabe gefunden.
 
 ```
-cat data/*.html | ./gelkao K0000000000
-cat data/invoice.html | HETZNER_CN=K0000000000 ./gelkao
+cat data/*.html | ./gelkao
+cat data/invoice.html | ./gelkao -d /tmp/audit
 ```
 
 ### gelkao list
@@ -170,10 +172,12 @@ cat data/invoice-list.html | ./gelkao list
 cat data/*.html | ./gelkao list | sort -u
 ```
 
-### gelkao fetch &lt;kundennummer&gt;
+### gelkao fetch
 
-Liest Rechnungs-UUIDs von der Standardeingabe (eine pro Zeile) und lädt jede
-detaillierte Rechnung als CSV von `https://usage.hetzner.com/<uuid>?csv&cn=<kundennummer>`
+Liest die Ausgabe von `gelkao list` von der Standardeingabe – eine Zeile mit der
+Kundennummer (`K…`) und eine Rechnungs-UUID pro Zeile, in beliebiger Reihenfolge –
+und lädt jede detaillierte Rechnung als CSV von
+`https://usage.hetzner.com/<uuid>?csv&cn=<kundennummer>`
 herunter. Die Dateien werden in das Datenverzeichnis als `<kundennummer>-<YYYY-MM>-<uuid>.csv`
 geschrieben, wobei sich Jahr und Monat aus dem ersten ISO-Datum in der CSV
 ergeben. Da die UUID Teil des Dateinamens ist, wird eine bereits vorhandene
@@ -181,9 +185,8 @@ Rechnung erkannt und **vor** dem Herunterladen übersprungen (der Monat wird bei
 der Suche als Platzhalter behandelt) – erneute Läufe und Wiederholungen
 verursachen somit keinen Netzwerk-Request für bereits erledigte Arbeit.
 
-`<kundennummer>` ist erforderlich (z. B. `K0000000000`) und kann alternativ über
-`HETZNER_CN` bereitgestellt werden. `-d <verzeichnis>` legt das Ausgabeverzeichnis
-fest (Vorgabe `data`).
+Die Kundennummer stammt aus dem Datenstrom, nicht aus einem Argument.
+`-d <verzeichnis>` legt das Ausgabeverzeichnis fest (Vorgabe `data`).
 
 **AUSGABE** – `ok`-/`skip`-Fortschrittszeilen auf der Standardausgabe,
 `fail`-Zeilen auf der Standardfehlerausgabe und abschließend eine Zusammenfassung
@@ -191,7 +194,9 @@ fest (Vorgabe `data`).
 CSV-Dateien landen im Datenverzeichnis.
 
 **EXIT-STATUS** – `0` abgeschlossen (einzelne Download-Fehler werden gemeldet,
-brechen den Lauf jedoch nicht ab) · `1` keine Kundennummer angegeben.
+brechen den Lauf jedoch nicht ab) · `1` keine `K…`-Zeile auf der Standardeingabe
+oder zwei verschiedene (Ausgaben zweier `list`-Läufe für verschiedene Accounts
+aneinandergehängt). Wiederholungen derselben Nummer sind unproblematisch.
 
 **ANMERKUNGEN** – das Programm lädt sequenziell und ohne künstliche Verzögerung
 herunter, und das ist beabsichtigt. Eine Untersuchung des Endpunkts zeigt, dass
@@ -215,14 +220,16 @@ Session-Cookie ist beteiligt; die beiden Werte zusammen bilden die Zugangsdaten,
   angegeben werden. Diese Nummer ist jedoch für jede Rechnung des Accounts gleich
   und weist wenig Entropie auf, sodass die UUID, sobald die Nummer bekannt ist,
   praktisch das einzige rechnungsspezifische Geheimnis ist.
+- Beide Werte stehen in der gespeicherten Rechnungsseite; genau diese Datei ist
+  daher das schützenswerte Artefakt.
 - Sowohl die UUID-Liste als auch die Kundennummer sind als sensibel zu behandeln,
   die heruntergeladenen CSVs als Abrechnungsdaten. `data/` ist standardmäßig per
   gitignore ausgeschlossen – es aus der Versionsverwaltung, aus Protokollen
   (Logs), Tickets und geteilten Ablagen heraushalten.
 
 ```
-echo 00000000-0000-0000-0000-000000000000 | ./gelkao fetch K0000000000
-echo 00000000-0000-0000-0000-000000000000 | HETZNER_CN=K0000000000 ./gelkao fetch
+printf 'K0000000000\n00000000-0000-0000-0000-000000000000\n' | ./gelkao fetch
+cat data/*.html | ./gelkao list | ./gelkao fetch
 ```
 
 ### gelkao audit
@@ -260,7 +267,7 @@ Geheimnisse, die niemals auf einen öffentlichen CI-Runner gelangen dürfen –,
 deshalb läuft er nur auf deinem Rechner:
 
 ```
-HETZNER_CN=K... INVOICE_HTML=data/your-invoices.html bats tests/*.bats
+INVOICE_HTML=data/your-invoices.html bats tests/*.bats
 ```
 
 - `gelkao` teilt sich seine Logik mit `lib.sh`.
@@ -277,7 +284,7 @@ das Integration-Badge im README speist – so spiegelt das Badge einen echten La
 gegen echte Rechnungen wider, nicht die CI:
 
 ```
-HETZNER_CN=K... INVOICE_HTML=data/your-invoices.html ./badge.sh
+INVOICE_HTML=data/your-invoices.html ./badge.sh
 ```
 
 ## Referenzen
