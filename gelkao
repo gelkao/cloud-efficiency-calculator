@@ -8,17 +8,18 @@ source "$here/lib.sh"
 usage() {
   cat <<'EOF'
 Usage:
-  cat data/*.html | gelkao [-g "<project>"] [-d <dir>] [-f <path>] <customer-number>   fetch invoices and audit
-  cat data/*.html | gelkao list                                                        list invoice UUIDs
-  gelkao [-d <dir>] fetch <customer-number>                                            download invoice CSVs (UUIDs on stdin)
-  gelkao [-g "<project>"] [-d <dir>] [-f <path>] audit                                 build the DB from CSVs and audit
+  cat data/*.html | gelkao [-g "<project>"] [-d <dir>] [-f <path>]   fetch invoices and audit
+  cat data/*.html | gelkao list                                     list the customer number and invoice UUIDs
+  gelkao [-d <dir>] fetch                                           download invoice CSVs (output of list on stdin)
+  gelkao [-g "<project>"] [-d <dir>] [-f <path>] audit              build the DB from CSVs and audit
 
   -g "<project>"   audit only one Hetzner project (the invoice "grouping" column);
                    valid for the full run and audit only
   -d <dir>         CSV directory (default: data)
   -f <path>        database file (default: <dir>/gelkao.db)
   -q               skip the price-refresh prompt (non-interactive)
-  HETZNER_CN       customer number (fallback for <customer-number>)
+
+The customer number is read from the invoice page itself — there is nothing to type.
 EOF
 }
 
@@ -30,12 +31,7 @@ banner() {
 
 cmd_list() { list_invoices "$@"; }
 
-cmd_fetch() {
-  local data_dir=$1; shift
-  local cn="${1:-${HETZNER_CN:-}}"
-  [[ -n "$cn" ]] || die "customer number required (arg or HETZNER_CN env)"
-  fetch_all "$cn" "$data_dir"
-}
+cmd_fetch() { fetch_all "$1"; }
 
 cmd_audit() {
   local grouping=$1 quiet=$2 data_dir=$3 db=$4
@@ -43,11 +39,9 @@ cmd_audit() {
 }
 
 cmd_run() {
-  local grouping=$1 quiet=$2 data_dir=$3 db=$4; shift 4
-  local cn="${1:-${HETZNER_CN:-}}"
-  [[ -n "$cn" ]] || die "customer number required (arg or HETZNER_CN env)"
+  local grouping=$1 quiet=$2 data_dir=$3 db=$4
   banner
-  run_pipeline "$here" "$cn" "$data_dir" "$db" "$grouping" "$quiet"
+  run_pipeline "$here" "$data_dir" "$db" "$grouping" "$quiet"
 }
 
 main() {
@@ -66,11 +60,12 @@ main() {
   done
   shift $((OPTIND - 1))
   case "${1-}" in
-    '')    usage; exit 2 ;;
+    '')    if [ -t 0 ]; then usage; exit 2; fi
+           cmd_run "$grouping" "$quiet" "$data_dir" "$db" ;;
     list)  shift; [[ -z "$grouping" ]] || die "-g is not valid for list"; [[ "$data_dir_set" = 0 ]] || die "-d is not valid for list"; [[ -z "$db" ]] || die "-f is not valid for list"; cmd_list "$@" ;;
-    fetch) shift; [[ -z "$grouping" ]] || die "-g is not valid for fetch"; [[ -z "$db" ]] || die "-f is not valid for fetch"; cmd_fetch "$data_dir" "$@" ;;
+    fetch) shift; [[ -z "$grouping" ]] || die "-g is not valid for fetch"; [[ -z "$db" ]] || die "-f is not valid for fetch"; cmd_fetch "$data_dir" ;;
     audit) shift; cmd_audit "$grouping" "$quiet" "$data_dir" "$db" ;;
-    *)            cmd_run   "$grouping" "$quiet" "$data_dir" "$db" "$@" ;;
+    *)     die "unknown command: $1 — try list, fetch, audit, or --help" ;;
   esac
 }
 

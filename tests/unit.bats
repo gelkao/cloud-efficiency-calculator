@@ -49,6 +49,52 @@ HTML
   [[ "${lines[0]}" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
 }
 
+@test "extract_cn pulls the customer number out of invoice HTML" {
+  f="$BATS_TEST_TMPDIR/page.html"
+  cat > "$f" <<'HTML'
+<span>Some Company Ltd</span> <td>K1234567890</td>
+<a href="https://usage.hetzner.com/11111111-2222-3333-4444-555555555555">detail</a>
+HTML
+  run extract_cn "$f"
+  [ "$status" -eq 0 ]
+  [ "$output" = "K1234567890" ]
+}
+
+@test "extract_cn ignores K-tokens that are not 10 digits" {
+  f="$BATS_TEST_TMPDIR/noise.html"
+  printf '<img src="/assets/images/info-dark-j6AMhK7.svg"/><small>K1234567890</small>\n' > "$f"
+  run extract_cn "$f"
+  [ "$status" -eq 0 ]
+  [ "$output" = "K1234567890" ]
+}
+
+@test "extract_cn refuses to guess when the input holds several customer numbers" {
+  f="$BATS_TEST_TMPDIR/two.html"
+  printf '<td>K1111111111</td><td>K2222222222</td>\n' > "$f"
+  run extract_cn "$f"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"several customer numbers"* ]]
+}
+
+@test "list_invoices emits the customer number alongside the UUIDs" {
+  f="$BATS_TEST_TMPDIR/page.html"
+  cat > "$f" <<'HTML'
+<td>K1234567890</td>
+<a href="https://usage.hetzner.com/11111111-2222-3333-4444-555555555555">detail</a>
+HTML
+  run list_invoices "$f"
+  [ "$status" -eq 0 ]
+  [ "${#lines[@]}" -eq 2 ]
+  [ "${lines[0]}" = "K1234567890" ]
+  [ "${lines[1]}" = "11111111-2222-3333-4444-555555555555" ]
+}
+
+@test "fetch_all errors when no customer number reaches it" {
+  run bash -c "echo 11111111-2222-3333-4444-555555555555 | '$ROOT/gelkao' -d '$BATS_TEST_TMPDIR/nf' fetch"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"no customer number on stdin"* ]]
+}
+
 # curl is stubbed as a tripwire: any invocation drops a marker file. The skip
 # path must never reach it.
 @test "fetch_one skips an already-present invoice WITHOUT touching the network" {
@@ -88,7 +134,7 @@ HTML
   [ "$status" -ne 0 ]
   [[ "$output" == *"not valid for list"* ]]
 
-  run "$ROOT/gelkao" -g "Project prod" fetch K0000000000
+  run "$ROOT/gelkao" -g "Project prod" fetch
   [ "$status" -ne 0 ]
   [[ "$output" == *"not valid for fetch"* ]]
 }
@@ -97,7 +143,7 @@ HTML
   d="$BATS_TEST_TMPDIR/f"; mkdir -p "$d"
   uuid=11111111-2222-3333-4444-555555555555
   invoice_csv "$d/K0000000000-2025-11-$uuid.csv"
-  run bash -c "echo '$uuid' | '$ROOT/gelkao' -d '$d' fetch K0000000000"
+  run bash -c "printf 'K0000000000\n%s\n' '$uuid' | '$ROOT/gelkao' -d '$d' fetch"
   [ "$status" -eq 0 ]
   [[ "$output" == *"skip"* ]]
 }
@@ -113,7 +159,7 @@ HTML
   [ "$status" -ne 0 ]
   [[ "$output" == *"not valid for list"* ]]
 
-  run "$ROOT/gelkao" -f /tmp/x.db fetch K0000000000
+  run "$ROOT/gelkao" -f /tmp/x.db fetch
   [ "$status" -ne 0 ]
   [[ "$output" == *"not valid for fetch"* ]]
 }
@@ -362,14 +408,14 @@ CSV
   [ "$(sqlite3 "$db" "SELECT printf('%.2f', optimal) FROM priced;")" = "4.57" ]
 }
 
-@test "gelkao -d <dir> <cn> runs the whole pipeline into <dir>: extract, fetch (skip), audit" {
+@test "gelkao -d <dir> runs the whole pipeline into <dir>: extract, fetch (skip), audit" {
   d="$BATS_TEST_TMPDIR/g"; mkdir -p "$d"
   uuid=11111111-2222-3333-4444-555555555555
   invoice_csv "$d/K0000000000-2025-11-$uuid.csv"   # pre-seeded -> fetch skips, no network
   html="$BATS_TEST_TMPDIR/page.html"
-  printf '<a href="https://usage.hetzner.com/%s">x</a>\n' "$uuid" > "$html"
+  printf '<td>K0000000000</td><a href="https://usage.hetzner.com/%s">x</a>\n' "$uuid" > "$html"
 
-  run bash -c "cat '$html' | '$ROOT/gelkao' -d '$d' K0000000000"
+  run bash -c "cat '$html' | '$ROOT/gelkao' -d '$d'"
   [ "$status" -eq 0 ]
   [[ "$output" == *"skip"* ]]                     # fetch skipped the pre-seeded invoice in <dir> (no curl)
   [[ "$output" == *"would save"* ]]               # audit ran end-to-end
