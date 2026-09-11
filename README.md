@@ -8,8 +8,8 @@ Also ist es keins. Kein Account, kein Login, nichts wird hochgeladen – es lies
 Rechnungen, die du ohnehin schon hast, zeigt dir, wie viel du zu viel bezahlt
 hast, und ist fertig. Grep durch den Quellcode und überzeug dich selbst.
 
-[![CI](https://github.com/gelkao/cloud-inefficiency-audit/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/gelkao/cloud-inefficiency-audit/actions/workflows/ci.yml)
-[![integration](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/dominikzalewski/696b0e161d53e5b752b2c6bc7c0fbf74/raw/cloud-inefficiency-audit-integration.json)](https://gist.github.com/dominikzalewski/696b0e161d53e5b752b2c6bc7c0fbf74)
+[![CI](https://github.com/gelkao/cli/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/gelkao/cli/actions/workflows/ci.yml)
+[![integration](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/dominikzalewski/696b0e161d53e5b752b2c6bc7c0fbf74/raw/gelkao-cli-integration.json)](https://gist.github.com/dominikzalewski/696b0e161d53e5b752b2c6bc7c0fbf74)
 
 ## Schnellstart
 
@@ -43,7 +43,7 @@ Exakte Zahlen: 14 Monate, 193 Server, 1.878 €/Monat, **23 % zu viel gezahlt.**
 
 ## Teile dein Ergebnis
 
-Audit durchgelaufen? Poste dein Ergebnis in den [Discussions](https://github.com/gelkao/cloud-inefficiency-audit/discussions/11) – keine E-Mail, nichts wird hochgeladen, nur das, was du selbst einfügst.
+Audit durchgelaufen? Poste dein Ergebnis in den [Discussions](https://github.com/gelkao/cli/discussions/11) – keine E-Mail, nichts wird hochgeladen, nur das, was du selbst einfügst.
 
 ## Voraussetzungen
 
