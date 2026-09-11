@@ -44,7 +44,7 @@ jobs:
             echo '```'
           } | tee -a "$GITHUB_STEP_SUMMARY"
 
-      - name: Run hermetic tests (unit + report)
+      - name: Run hermetic tests (no network, no credentials)
         run: |
           bats --print-output-on-failure --formatter tap tests/unit.bats tests/volume.bats tests/report.bats tests/badge.bats | tee result.tap
 
