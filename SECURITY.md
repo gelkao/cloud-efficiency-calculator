@@ -40,7 +40,7 @@ These properties are verifiable from the source — you do not have to take our 
 
 ## Dependencies (supply-chain surface)
 
-Deliberately minimal: `bash`, `curl`, and `sqlite3`, plus standard text utilities (`grep`, `sed`). **No package manager, no build step, no third-party libraries, and no Python in the run path.** The whole tool is two readable shell files (`gelkao`, `lib.sh`) plus the SQL in `schema.sql` / `audit.sql` — auditable in one sitting.
+Deliberately minimal: `bash`, `curl`, and `sqlite3`, plus standard text utilities (`grep`, `sed`). **No package manager, no build step, no third-party libraries, and no Python in the run path.** The whole tool is three readable shell files (`gelkao`, `lib.sh`, `volume.sh`) plus the SQL in `schema.sql` / `normalize.sql` / `audit.sql` / `placement.sql` — auditable in one sitting.
 
 ## A note on the customer number
 
