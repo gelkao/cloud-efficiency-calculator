@@ -48,7 +48,7 @@ Ran an audit? Post your result in [Discussions](https://github.com/gelkao/cli/di
 `gelkao` is a small shell tool with a few standard dependencies:
 
 - **bash** 3.2+ — the macOS system bash works.
-- **sqlite3** 3.32+ — the audit engine; older versions cannot run the `.import --skip 1` it relies on.
+- **sqlite3** 3.8.3+ — the audit engine.
 - **curl** — to download invoices (`fetch`) and, if you accept the optional price refresh, the price tables; decline the prompt or pass `-q` and the audit stays fully offline.
 - standard POSIX tools (`grep`, `sed`, `head`), present on any Unix.
 - **Windows:** run it inside WSL (Windows Subsystem for Linux); it then behaves exactly like the Linux setup above.

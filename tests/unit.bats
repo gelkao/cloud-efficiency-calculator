@@ -438,7 +438,7 @@ CSV
   [[ "$output" == *"would save"* ]]
 }
 
-@test "require_sqlite rejects sqlite older than 3.32" {
+@test "require_sqlite rejects sqlite too old for common table expressions" {
   stub="$BATS_TEST_TMPDIR/old"; mkdir -p "$stub"
   printf '#!/bin/sh\necho "3.7.17 2013-05-20 00:48:51"\n' > "$stub/sqlite3"
   chmod +x "$stub/sqlite3"
@@ -447,12 +447,28 @@ CSV
   [[ "$output" == *"too old"* ]]
 }
 
-@test "require_sqlite accepts sqlite 3.32 or newer" {
+@test "require_sqlite accepts a modern sqlite" {
   stub="$BATS_TEST_TMPDIR/new"; mkdir -p "$stub"
   printf '#!/bin/sh\necho "3.40.1 2022-12-28 14:03:47"\n' > "$stub/sqlite3"
   chmod +x "$stub/sqlite3"
   PATH="$stub:$PATH" run require_sqlite
   [ "$status" -eq 0 ]
+}
+
+@test "require_sqlite accepts the sqlite a stable distro ships, below the old 3.32 floor" {
+  stub="$BATS_TEST_TMPDIR/distro"; mkdir -p "$stub"
+  printf '#!/bin/sh\necho "3.27.2 2019-02-25 16:06:06"\n' > "$stub/sqlite3"
+  chmod +x "$stub/sqlite3"
+  PATH="$stub:$PATH" run require_sqlite
+  [ "$status" -eq 0 ]
+}
+
+@test "require_sqlite compares the patch level, not just major and minor" {
+  stub="$BATS_TEST_TMPDIR/patch"; mkdir -p "$stub"
+  printf '#!/bin/sh\necho "3.8.2 2013-12-06 14:53:30"\n' > "$stub/sqlite3"
+  chmod +x "$stub/sqlite3"
+  PATH="$stub:$PATH" run require_sqlite
+  [ "$status" -ne 0 ]
 }
 
 @test "require_sqlite fails when sqlite3 is not installed" {

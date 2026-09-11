@@ -50,7 +50,7 @@ Audit durchgelaufen? Poste dein Ergebnis in den [Discussions](https://github.com
 `gelkao` ist ein kleines Shell-Tool mit ein paar Standard-Abhängigkeiten:
 
 - **bash** 3.2+ – die mitgelieferte bash von macOS reicht.
-- **sqlite3** 3.32+ – die Audit-Engine; ältere Versionen können das benötigte `.import --skip 1` nicht ausführen.
+- **sqlite3** 3.8.3+ – die Audit-Engine.
 - **curl** – um Rechnungen herunterzuladen (`fetch`) und, falls du die optionale Preisaktualisierung zulässt, die Preistabellen; lehnst du die Abfrage ab oder übergibst `-q`, bleibt das Audit vollständig offline.
 - Standard-POSIX-Tools (`grep`, `sed`, `head`), auf jedem Unix vorhanden.
 - **Windows:** in WSL (Windows Subsystem for Linux) ausführen; dann verhält es sich genau wie unter Linux oben.

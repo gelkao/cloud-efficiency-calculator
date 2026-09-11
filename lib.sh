@@ -2,16 +2,22 @@
 
 UUID_RE='[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 CN_RE='K[0-9]{10}'
+SQLITE_FLOOR='3.8.3'
 
 die() { echo "error: $*" >&2; exit 1; }
 
+version_number() {
+  local major minor patch
+  IFS=. read -r major minor patch <<<"$1"
+  printf '%d%03d%03d' "$major" "${minor:-0}" "${patch:-0}"
+}
+
 require_sqlite() {
-  command -v sqlite3 >/dev/null 2>&1 || die "sqlite3 not found — install sqlite3 (3.32+ required)"
-  local ver maj min
+  command -v sqlite3 >/dev/null 2>&1 || die "sqlite3 not found — install sqlite3 (3.8.3+ required)"
+  local ver
   ver=$(sqlite3 --version | cut -d' ' -f1)
-  IFS=. read -r maj min _ <<<"$ver"
-  if (( maj < 3 || (maj == 3 && min < 32) )); then
-    die "sqlite3 $ver is too old — need 3.32+ for '.import --skip 1'"
+  if [[ "$(version_number "$ver")" -lt "$(version_number "$SQLITE_FLOOR")" ]]; then
+    die "sqlite3 $ver is too old — need $SQLITE_FLOOR+ for common table expressions"
   fi
 }
 
@@ -137,11 +143,23 @@ fetch_all() {
   printf '%s\n' "$stream" | uuids_in_stream | download_each "$cn" "$data_dir"
 }
 
+import_csv_without_header() {
+  local db=$1 file=$2 table=$3
+  sqlite3 "$db" \
+    "DROP TABLE IF EXISTS staging_csv;
+     CREATE TABLE staging_csv AS SELECT * FROM $table WHERE 0;" \
+    ".mode csv" \
+    ".import '$file' staging_csv" \
+    "DELETE FROM staging_csv WHERE rowid = (SELECT MIN(rowid) FROM staging_csv);
+     INSERT INTO $table SELECT * FROM staging_csv;
+     DROP TABLE staging_csv;"
+}
+
 import_invoices() {
   local db=$1 data_dir=$2 f found=0
   for f in "$data_dir"/*.csv; do
     [ -e "$f" ] || continue
-    sqlite3 "$db" ".mode csv" ".import --skip 1 '$f' raw_invoices" 2>/dev/null
+    import_csv_without_header "$db" "$f" raw_invoices 2>/dev/null
     found=1
   done
   [ "$found" = 1 ] || die "no invoice CSVs in $data_dir/"
@@ -187,8 +205,8 @@ build_db() {
   rm -f "$db"
   sqlite3 "$db" < "$assets/schema.sql"
   import_invoices "$db" "$data_dir"
-  sqlite3 "$db" ".mode csv" ".import --skip 1 '$prices' prices"
-  sqlite3 "$db" ".mode csv" ".import --skip 1 '$spec' server_types"
+  import_csv_without_header "$db" "$prices" prices
+  import_csv_without_header "$db" "$spec" server_types
   sqlite3 "$db" < "$assets/normalize.sql"
   sqlite3 "$db" < "$assets/audit.sql"
 }
