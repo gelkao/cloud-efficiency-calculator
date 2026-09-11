@@ -83,12 +83,17 @@ need_data() {  # audit needs only local CSVs — no network, no credentials
 }
 
 @test "audit runs the committed synthetic examples with no credentials or network" {
+  # -f must divert the database. Asserting examples/gelkao.db is absent is wrong:
+  # the README quickstart legitimately creates it at the default path. Assert the
+  # run did not write it instead.
+  marker="$BATS_TEST_TMPDIR/before"
+  touch "$marker"
   run "$ROOT/gelkao" invoice audit -q -d "$ROOT/examples" -f "$BATS_TEST_TMPDIR/example.db"
   [ "$status" -eq 0 ]
   [[ "$output" =~ price\ group\ +:\ eu ]]
   [[ "$output" =~ would\ save\ :\ [23][0-9]\.[0-9]+% ]]
   [ -f "$BATS_TEST_TMPDIR/example.db" ]
-  [ ! -f "$ROOT/examples/gelkao.db" ]
+  [ ! "$ROOT/examples/gelkao.db" -nt "$marker" ]
 }
 
 @test "gelkao invoice audit end-to-end downloads then reports a positive line count" {
