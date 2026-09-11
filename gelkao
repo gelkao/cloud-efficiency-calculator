@@ -4,6 +4,8 @@ set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
 source "$here/lib.sh"
+# shellcheck source=volume.sh
+source "$here/volume.sh"
 
 usage() {
   cat <<'EOF'
@@ -21,6 +23,10 @@ Usage:
   -d <dir>         CSV directory (default: data)
   -f <path>        database file (default: <dir>/gelkao.db)
   -q               skip the price-refresh prompt (non-interactive)
+
+  cat volumes.txt | gelkao volume show
+                                     draw the leaf / volume pool / volume tree from the
+                                     placement table Hetzner support sends you
 
 The customer number is read from the invoice page itself — there is nothing to type.
 EOF
@@ -80,11 +86,23 @@ invoice_cmd() {
   esac
 }
 
+volume_cmd() {
+  local verb=${1-}
+  [[ -n "$verb" ]] || die "volume needs a subcommand: show"
+  shift
+  [[ $# -eq 0 ]] || die "unexpected argument: $1"
+  case "$verb" in
+    show) volume_show "$here" ;;
+    *)    die "unknown volume subcommand: $verb - try show" ;;
+  esac
+}
+
 main() {
   case "${1-}" in
     '')           usage; exit 2 ;;
     --help|-h)    usage; exit 0 ;;
     invoice)      shift; invoice_cmd "$@" ;;
+    volume)       shift; volume_cmd "$@" ;;
     *)            die "unknown command: $1 — try 'invoice', or --help" ;;
   esac
 }

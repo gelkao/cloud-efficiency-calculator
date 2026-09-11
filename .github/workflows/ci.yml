@@ -70,7 +70,7 @@ jobs:
       - name: Lint shell scripts
         run: |
           shellcheck --version >/dev/null 2>&1 || { sudo apt-get update && sudo apt-get install -y shellcheck; }
-          shellcheck gelkao lib.sh
+          shellcheck gelkao lib.sh volume.sh
 
   integration-skip:
     name: integration (skipped — no credentials in CI)
