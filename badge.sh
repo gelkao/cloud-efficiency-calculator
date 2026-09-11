@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 GIST_ID=696b0e161d53e5b752b2c6bc7c0fbf74
-GIST_FILE=cloud-inefficiency-audit-integration.json
+GIST_FILE=gelkao-cli-integration.json
 
 badge_json() {
   local passed=$1 failed=$2 date=$3 color message
