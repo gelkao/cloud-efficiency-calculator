@@ -46,14 +46,14 @@ jobs:
 
       - name: Run hermetic tests (unit + report)
         run: |
-          bats --print-output-on-failure --formatter tap tests/unit.bats tests/report.bats tests/badge.bats | tee result.tap
+          bats --print-output-on-failure --formatter tap tests/unit.bats tests/volume.bats tests/report.bats tests/badge.bats | tee result.tap
 
       - name: Prove macOS system bash 3.2 compatibility
         if: runner.os == 'macOS'
         run: |
           export PATH="/bin:$PATH"
           bash --version | head -1
-          bats --print-output-on-failure tests/unit.bats tests/report.bats tests/badge.bats
+          bats --print-output-on-failure tests/unit.bats tests/volume.bats tests/report.bats tests/badge.bats
 
       - name: Summarise results
         if: always()
